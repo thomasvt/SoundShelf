@@ -1,5 +1,7 @@
 ﻿using System.IO;
 using System.Text.Json;
+using System.Windows.Shapes;
+using Path = System.IO.Path;
 
 namespace SoundShelf
 {
@@ -14,6 +16,13 @@ namespace SoundShelf
         public SoundLibrary(string indexFilePath)
         {
             _indexFilePath = indexFilePath;
+        }
+
+        public void Clear()
+        {
+            _knownSoundFiles.Clear();
+            Sounds.Clear();
+            SaveIndex();
         }
 
         public void LoadIndex()
@@ -36,15 +45,28 @@ namespace SoundShelf
 
         public void Sync(Action<int, int> progressUpdateAction)
         {
-            var soundFiles = _libraryRoots.SelectMany(lr => Directory.EnumerateFiles(lr, "*.wav", SearchOption.AllDirectories)).ToList();
+            var soundFiles = _libraryRoots.SelectMany(lr => Directory.EnumerateFiles(lr, "*.wav", SearchOption.AllDirectories)).ToHashSet();
 
-            progressUpdateAction.Invoke(0, soundFiles.Count);
+            // remove disappeared sounds
+            foreach (var soundFile in _knownSoundFiles)
+            {
+                var soundId = GetSoundId(soundFile);
+                if (!soundFiles.Contains(soundId))
+                {
+                    Sounds.RemoveAt(Sounds.FindIndex(info => GetSoundId(info.FilePath) == soundId));
+                    _knownSoundFiles.Remove(soundId);
+                }
+            }
+
+            var newSoundFiles = soundFiles.Where(s => !_knownSoundFiles.Contains(GetSoundId(s))).ToList();
+            progressUpdateAction.Invoke(0, newSoundFiles.Count);
             var i = 0;
 
-            foreach (var path in soundFiles)
+            // add new sounds.
+            foreach (var path in newSoundFiles)
             {
-                var id = GetSoundId(path);
-                if (_knownSoundFiles.Contains(id))
+                var soundId = GetSoundId(path);
+                if (_knownSoundFiles.Contains(soundId))
                     continue;
 
                 var info = new SoundFileInfo
@@ -55,7 +77,7 @@ namespace SoundShelf
                 };
 
                 Sounds.Add(info);
-                _knownSoundFiles.Add(id);
+                _knownSoundFiles.Add(soundId);
                 progressUpdateAction.Invoke(++i, soundFiles.Count);
             }
 

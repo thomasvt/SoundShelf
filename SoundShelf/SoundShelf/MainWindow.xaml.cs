@@ -1,10 +1,15 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Forms;
+using System.Windows.Input;
 using System.Windows.Media;
 using File = System.IO.File;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using MessageBox = System.Windows.MessageBox;
 using Path = System.IO.Path;
 
 namespace SoundShelf
@@ -22,6 +27,10 @@ namespace SoundShelf
         private readonly string _configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundShelf", "config.json");
         private string _searchQuery = "";
         private string _countLabel;
+        private SoundFileInfo? _currentSound;
+        private TimeSpan _cursor;
+        private TimeSpan _stopAtTime;
+        private string _scanProgressMessage;
 
         public MainWindow()
         {
@@ -56,21 +65,32 @@ namespace SoundShelf
             if (_soundPlayer.IsPlaying)
             {
                 var currentTime = _soundPlayer.CurrentTime!.Value;
-                WaveformViewer.Cursor = currentTime;
+                WaveformViewer.TimeCursor = currentTime;
             }
         }
 
-        private void RefreshLibrary_Click(object sender, RoutedEventArgs e)
+        private void RescanLibrary_Click(object sender, RoutedEventArgs e)
         {
+            _soundPlayer.Stop();
+            CurrentSound = null;
+
             Task.Run(() =>
             {
                 _soundLibrary.Sync((done, total) => Dispatcher.Invoke(() =>
                 {
                     ScanTaskDone = done;
                     ScanTaskTotal = total;
+                    ScanProgressMessage = $"{done} / {total}";
                 }));
-                Results = _soundLibrary.Sounds;
+                Dispatcher.Invoke(ApplySearchFilter);
             });
+        }
+
+        private void ClearLibrary_Click(object sender, RoutedEventArgs e)
+        {
+            _soundLibrary.Clear();
+            CurrentSound = null;
+            ApplySearchFilter();
         }
 
         private void ConfigureLibrary_Click(object sender, RoutedEventArgs e)
@@ -102,7 +122,11 @@ namespace SoundShelf
             Dispatcher.Invoke(() =>
             {
                 CountLabel = $"{sounds.Count} sound(s)";
-                return Results = sounds;
+                Results.Clear();
+                foreach (var sound in sounds)
+                {
+                    Results.Add(sound);
+                }
             });
         }
 
@@ -111,8 +135,8 @@ namespace SoundShelf
             if (e.AddedItems.Count > 0 && e.AddedItems[0] is SoundFileInfo selected)
             {
                 CurrentSound = selected;
-                _soundPlayer.Play(selected.FilePath);
-                WaveformViewer.SoundFilePath = selected.FilePath;
+                _soundPlayer.Load(selected.FilePath);
+                _soundPlayer.Play();
             }
             else
             {
@@ -122,26 +146,68 @@ namespace SoundShelf
 
         private void PlayButton_Click(object sender, RoutedEventArgs e)
         {
+            Play();
+        }
+
+        private void Play()
+        {
             if (CurrentSound == null) return;
 
             if (WaveformViewer.HasSelection)
             {
-                _soundPlayer.Play(CurrentSound.FilePath, WaveformViewer.SelectionStart, WaveformViewer.SelectionEnd);
+                _soundPlayer.Play(WaveformViewer.SelectionStart, WaveformViewer.SelectionEnd);
             }
             else
             {
-                _soundPlayer.Play(CurrentSound.FilePath);
+                _soundPlayer.Play();
+                _soundPlayer.JumpTo(TimeCursor);
             }
         }
 
-
-        public SoundFileInfo? CurrentSound { get; set; }
-
-        public List<SoundFileInfo> Results
+        private void StopButton_Click(object sender, RoutedEventArgs e)
         {
-            get => _filterResults;
-            set => SetField(ref _filterResults, value);
+            _soundPlayer.Stop();
         }
+
+        private void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Space)
+            {
+                if (_soundPlayer.IsPlaying)
+                    _soundPlayer.Stop();
+                else
+                    Play();
+            }
+        }
+
+        private void ExportSelectionButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            if (!WaveformViewer.HasSelection)
+            {
+                MessageBox.Show("Export slice only works when you selected a slice of the wave.");
+                return;
+            }
+            var fileDlg = new SaveFileDialog
+            {
+                Filter = "Wave files (*.wav)|*.wav",
+                DefaultExt = ".wav",
+                OverwritePrompt = true,
+                FileName = "slice.wav"
+            };
+
+            if (fileDlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                SliceExporter.ExportSlice(CurrentSound.FilePath, fileDlg.FileName, WaveformViewer.SelectionStart, WaveformViewer.SelectionEnd - WaveformViewer.SelectionStart);
+            }
+        }
+
+        public SoundFileInfo? CurrentSound
+        {
+            get => _currentSound;
+            set => SetField(ref _currentSound, value);
+        }
+
+        public ObservableCollection<SoundFileInfo> Results { get; }= new();
 
         public int ScanTaskTotal
         {
@@ -169,10 +235,36 @@ namespace SoundShelf
             }
         }
 
+        public TimeSpan TimeCursor
+        {
+            get => _cursor;
+            set
+            {
+                SetField(ref _cursor, value);
+                _soundPlayer.JumpTo(value);
+            }
+        }
+
+        public TimeSpan StopAtTime
+        {
+            get => _stopAtTime;
+            set
+            {
+                SetField(ref _stopAtTime, value);
+                _soundPlayer.Stop();
+            }
+        }
+
         public string CountLabel
         {
             get => _countLabel;
             set => SetField(ref _countLabel, value);
+        }
+
+        public string ScanProgressMessage
+        {
+            get => _scanProgressMessage;
+            set => SetField(ref _scanProgressMessage, value);
         }
 
         #region PropertyChanged
@@ -198,5 +290,7 @@ namespace SoundShelf
         {
             _soundPlayer.Dispose();
         }
+
+
     }
 }

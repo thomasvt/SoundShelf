@@ -7,7 +7,8 @@
         xmlns:waveForm="clr-namespace:SoundShelf.WaveForm"
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800"
-        Loaded="MainWindow_OnLoaded">
+        Loaded="MainWindow_OnLoaded"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown">
     <Grid>
         <DockPanel Margin="10">
 
@@ -21,19 +22,27 @@
                 <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical">
                     <Label Content="{Binding CountLabel}"></Label>
 
-                    <waveForm:WaveFormViewer DockPanel.Dock="Bottom" x:Name="WaveformViewer" Height="100" Background="#222" />
+                    <waveForm:WaveFormViewer DockPanel.Dock="Bottom" x:Name="WaveformViewer" SoundFilePath="{Binding CurrentSound.FilePath}" 
+                                             TimeCursor="{Binding TimeCursor, Mode=TwoWay}" 
+                                             SelectionEnd="{Binding StopAtTime, Mode=TwoWay}"
+                                             Height="100" Background="#222" />
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="▶" Padding="8" Click="PlayButton_Click"></Button>
-                        <Button Content="◼" Padding="8"></Button>
-                        <Button Content="Export selection" Padding="8"></Button>
+                        <Button Content="▶" Padding="8" Margin="4" Click="PlayButton_Click"></Button>
+                        <Button Content="◼" Padding="8" Margin="4" Click="StopButton_Click"></Button>
+                        <Button Content="Export slice" Margin="4" Padding="8" Click="ExportSelectionButton_OnClick"></Button>
                     </StackPanel>
 
                     <DockPanel >
                         <Button DockPanel.Dock="Right" Content="..." Padding="4" Margin="4" Click="ConfigureLibrary_Click"/>
-                        <Button Content="Refresh library" Padding="4"  Margin="4" Click="RefreshLibrary_Click"/>
+                        <Button DockPanel.Dock="Right" Content="Clear" Padding="4" Margin="4" Click="ClearLibrary_Click"/>
+                        <Button Content="Scan library" Padding="4"  Margin="4" Click="RescanLibrary_Click"/>
                     </DockPanel>
-                    <ProgressBar Height="8" Maximum="{Binding ScanTaskTotal}" Value="{Binding ScanTaskDone}" />
+
+                    <Grid>
+                        <ProgressBar Height="4" Margin="4" Maximum="{Binding ScanTaskTotal}" Value="{Binding ScanTaskDone}" />
+                        <Label Content="{Binding ScanProgressMessage}"></Label>
+                    </Grid>
                 </StackPanel>
 
             </StackPanel>

@@ -10,33 +10,7 @@ namespace SoundShelf.WaveForm
 
     internal class WaveFormGenerator
     {
-        public float[] ExtractWaveformSamples(string filePath, int points)
-        {
-            using var reader = new AudioFileReader(filePath);
-            float[] result = new float[points];
-
-            float[] buffer = new float[reader.WaveFormat.SampleRate];
-            long totalSamples = reader.Length / (reader.WaveFormat.BitsPerSample / 8);
-            int samplesPerPoint = (int)(totalSamples / points);
-
-            for (int i = 0; i < points; i++)
-            {
-                reader.Position = i * samplesPerPoint * sizeof(float);
-                int read = reader.Read(buffer, 0, samplesPerPoint);
-
-                double sumSquares = 0;
-                for (int j = 0; j < read; j++)
-                {
-                    sumSquares += buffer[j] * buffer[j];
-                }
-
-                result[i] = (float)Math.Sqrt(sumSquares / read);
-            }
-
-            return result;
-        }
-
-        public float[] ExtractWaveformSamples2(string filePath, int points)
+        public WaveForm ExtractWaveform2(string filePath, int points)
         {
             using var reader = new AudioFileReader(filePath); // returns float samples already
             var waveFormat = reader.WaveFormat;
@@ -66,7 +40,11 @@ namespace SoundShelf.WaveForm
                 result[i] = (float)Math.Sqrt(sumSquares / read);
             }
 
-            return result;
+            return new WaveForm()
+            {
+                Samples = result,
+                Duration = reader.TotalTime
+            };
         }
 
         public WaveForm ExtractWaveform3(string filePath, int points)

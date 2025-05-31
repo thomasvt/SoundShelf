@@ -18,7 +18,7 @@ namespace SoundShelf.WaveForm
         private Line? _waveformCursorLine;
         private Point? _selectionStartPos;
         private Rectangle? _selectionRect;
-        private WaveForm _waveForm;
+        private WaveForm? _waveForm;
 
         public override void OnApplyTemplate()
         {
@@ -55,9 +55,9 @@ namespace SoundShelf.WaveForm
             // Create a rectangle if not already added
             _selectionRect ??= new Rectangle
             {
-                Stroke = Brushes.Cyan,
+                Stroke = Brushes.DeepSkyBlue,
                 StrokeThickness = 1,
-                Fill = new SolidColorBrush(Color.FromArgb(60, 0, 255, 255)) // translucent blue
+                Fill = new SolidColorBrush(Colors.DeepSkyBlue with { A = 50 })
             };
 
             if (!_canvas.Children.Contains(_selectionRect))
@@ -95,15 +95,20 @@ namespace SoundShelf.WaveForm
                 var x = Canvas.GetLeft(_selectionRect);
                 var width = _selectionRect.Width;
 
+
+                var canvasWidth = _canvas.ActualWidth;
+                var totalSec = _waveForm!.Duration.TotalSeconds;
+                var startSec = x / canvasWidth * totalSec;
+
+                TimeCursor = TimeSpan.FromSeconds(startSec);
+
                 if (width > 1)
                 {
-                    var canvasWidth = _canvas.ActualWidth;
-                    if (_waveForm.Duration.TotalSeconds > 0)
+                    if (totalSec > 0)
                     {
-                        var totalSec = _waveForm.Duration.TotalSeconds;
-                        var startSec = x / canvasWidth * totalSec;
                         var endSec = (x + width) / canvasWidth * totalSec;
 
+                        
                         SelectionStart = TimeSpan.FromSeconds(startSec);
                         SelectionEnd = TimeSpan.FromSeconds(endSec);
                         HasSelection = true;
@@ -137,7 +142,7 @@ namespace SoundShelf.WaveForm
             var canvasHeight = _canvas.ActualHeight;
             var centerY = canvasHeight / 2.0;
 
-            _waveForm = _waveFormGenerator.ExtractWaveform3(filePath, (int)canvasWidth);
+            _waveForm = _waveFormGenerator.ExtractWaveform2(filePath, (int)canvasWidth);
 
             var xStep = canvasWidth / _waveForm.Samples.Length;
 
@@ -224,17 +229,19 @@ namespace SoundShelf.WaveForm
             set => SetValue(HasSelectionProperty, value);
         }
 
-        public readonly static DependencyProperty CursorProperty = DependencyProperty.Register(
-            nameof(Cursor), typeof(TimeSpan), typeof(WaveFormViewer), new FrameworkPropertyMetadata(
+        public readonly static DependencyProperty TimeCursorProperty = DependencyProperty.Register(
+            nameof(TimeCursor), typeof(TimeSpan), typeof(WaveFormViewer), new FrameworkPropertyMetadata(
+                default(TimeSpan),
+                FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 (o, args) =>
                 {
                     (o as WaveFormViewer)?.UpdateCursor((TimeSpan)args.NewValue);
                 }));
 
-        public TimeSpan Cursor
+        public TimeSpan TimeCursor
         {
-            get => (TimeSpan)GetValue(CursorProperty);
-            set => SetValue(CursorProperty, value);
+            get => (TimeSpan)GetValue(TimeCursorProperty);
+            set => SetValue(TimeCursorProperty, value);
         }
     }
 }
