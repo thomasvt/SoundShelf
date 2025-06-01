@@ -1,4 +1,4 @@
-﻿namespace SoundShelf
+﻿namespace SoundShelf.Library
 {
     public class SoundFileMetaData
     {

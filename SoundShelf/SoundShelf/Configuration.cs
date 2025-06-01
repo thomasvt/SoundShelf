@@ -6,6 +6,7 @@ namespace SoundShelf
     public class Configuration
     {
         public List<string> LibraryRoots { get; set; } = new();
+        public ResultVisualizationMode ResultVisualizationMode { get; set; } = ResultVisualizationMode.Filename;
 
         public static Configuration LoadFromFile(string path)
         {

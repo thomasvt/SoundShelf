@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using TagLib.Flac;
 
 namespace SoundShelf.Library
 {
@@ -13,6 +14,9 @@ namespace SoundShelf.Library
         {
             var soundFiles = libraryRoots
                 .SelectMany(lr => Directory.EnumerateFiles(lr, "*.wav", SearchOption.AllDirectories))
+                .ToList();
+
+            var soundFilesLookup = soundFiles
                 .Select(SoundLibrary.GetSoundId)
                 .ToHashSet();
 
@@ -22,7 +26,7 @@ namespace SoundShelf.Library
             foreach (var soundFile in library.KnownSoundFiles)
             {
                 var soundId = SoundLibrary.GetSoundId(soundFile);
-                if (!soundFiles.Contains(soundId))
+                if (!soundFilesLookup.Contains(soundId))
                 {
                     library.Sounds.RemoveAt(library.Sounds.FindIndex(info => SoundLibrary.GetSoundId(info.FilePath) == soundId));
                     library.KnownSoundFiles.Remove(soundId);
@@ -41,11 +45,15 @@ namespace SoundShelf.Library
                 if (library.KnownSoundFiles.Contains(soundId))
                     continue;
 
-                var info = new SoundFileInfo
+                var metaData = SoundFileMetaData.ReadFrom(path);
+
+                var filename = Path.GetFileNameWithoutExtension(path);
+                var info = new SoundFile
                 {
+                    DetectedTags = GetTags(filename, metaData),
                     FilePath = path,
-                    FileName = Path.GetFileNameWithoutExtension(path),
-                    MetaData = SoundFileMetaData.ReadFrom(path)
+                    FileName = filename,
+                    MetaData = metaData
                 };
 
                 library.Sounds.Add(info);
@@ -55,6 +63,49 @@ namespace SoundShelf.Library
 
             library.Save();
             return new ScanProgress(newSoundFiles.Count, newSoundFiles.Count, deleteCount);
+        }
+
+        /// <summary>
+        /// Returns all individual textual tags that can be compiled from filename and metadata.
+        /// </summary>
+        private List<string> GetTags(string fileName, SoundFileMetaData? metaData)
+        {
+            var tags = new List<string>();
+            AddIfNotEmpty(tags, metaData?.Artist);
+            AddIfNotEmpty(tags, metaData?.Genre);
+            SplitComplexString(tags, metaData?.Title);
+            SplitComplexString(tags, fileName);
+
+            return tags;
+        }
+
+        private void SplitComplexString(List<string> tags, string? complex)
+        {
+            if (complex == null) return;
+
+            var parts = complex
+                .Split(['_', '-', ',', '.'], StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .Where(t => t.Length > 0);
+
+            foreach (var part in parts)
+            {
+                AddIfDistinct(tags, part);
+            }
+
+        }
+
+        private static void AddIfNotEmpty(List<string> tags, string? tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) return;
+            AddIfDistinct(tags, tag);
+        }
+
+        private static void AddIfDistinct(List<string> tags, string tag)
+        {
+            tag = tag.ToLower();
+            if (tags.Contains(tag)) return;
+            tags.Add(tag);
         }
     }
 }

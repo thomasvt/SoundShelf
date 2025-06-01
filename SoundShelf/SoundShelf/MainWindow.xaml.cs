@@ -1,4 +1,5 @@
-﻿using System.Collections.ObjectModel;
+﻿using System;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -14,6 +15,8 @@ using Path = System.IO.Path;
 
 namespace SoundShelf
 {
+    public record SearchHit(string Label, SoundFile SoundFile);
+        
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -26,13 +29,14 @@ namespace SoundShelf
         private readonly string _configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundShelf", "config.json");
         private string _searchQuery = "";
         private string _countLabel;
-        private SoundFileInfo? _currentSound;
+        private SoundFile? _currentSoundFile;
         private TimeSpan _cursor;
         private TimeSpan _stopAtTime;
         private string _scanProgressMessage;
         private Visibility _progressVisibility = Visibility.Hidden;
         private Configuration _configuration;
         private string _libraryRootPaths;
+        private ResultVisualizationMode _resultVisualizationMode;
 
         public MainWindow()
         {
@@ -45,9 +49,23 @@ namespace SoundShelf
             CompositionTarget.Rendering += OnRendering;
 
             LoadConfiguration();
-            _library.Load();
+            LoadSoundLibrary();
             ScanProgressMessage = $"Your SoundShelf contains {_library.Sounds.Count} sound(s).";
             ApplySearchFilter();
+        }
+
+        private void LoadSoundLibrary()
+        {
+            try
+            {
+                _library.Load();
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show(
+                    "Could not load library from index file. It is probably corrupt. If you manually changed the index file, fix it; or Clean the library from the Manage tab in SoundShelf.\n\nError:\n\n" + e.Message,
+                    "Library corrupt", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void LoadConfiguration()
@@ -60,6 +78,7 @@ namespace SoundShelf
 
             _configuration = Configuration.LoadFromFile(_configFilePath);
             LibraryRootPaths = string.Join(Environment.NewLine, _configuration.LibraryRoots);
+            ResultVisualizationMode = _configuration.ResultVisualizationMode;
         }
 
         private void SaveConfiguration()
@@ -77,12 +96,11 @@ namespace SoundShelf
             }
         }
 
-        private void RescanLibrary_Click(object sender, RoutedEventArgs e)
+        private Task<ScanProgress> ScanInBackground()
         {
             _soundPlayer.Stop();
-            CurrentSound = null;
-
-            Task.Run(() =>
+            CurrentSoundFile = null;
+            return Task.Run(() =>
             {
                 var scanner = new LibraryScanner(_library);
                 var progress = scanner.Scan(_configuration.LibraryRoots, (progress) => Dispatcher.Invoke(() =>
@@ -93,26 +111,29 @@ namespace SoundShelf
                     ScanTaskTotal = progress.NewTotal;
                     ScanProgressMessage = $"{progress.NewDone} of {progress.NewTotal} new sounds added {removeMsg}";
                 }));
-                ApplySearchFilter();
-                ScanProgressMessage = $"{progress.NewTotal} new - {progress.DeletesDone} removed. SoundShelf now contains {_library.Sounds.Count} sound(s).";
-                ProgressVisibility = Visibility.Hidden;
-            });
 
+                ApplySearchFilter();
+                
+                return progress;
+            });
         }
 
-        private void ClearLibrary_Click(object sender, RoutedEventArgs e)
+        private async void ScanChangesLibrary_Click(object sender, RoutedEventArgs e)
         {
-            if (MessageBox.Show("This clears your SoundShelf library. No sound files are physically deleted. Are you sure?", "Are you sure?", MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+            var lastProgressUpdate = await ScanInBackground();
+            ScanProgressMessage = $"{lastProgressUpdate.NewTotal} new - {lastProgressUpdate.DeletesDone} removed. Your SoundShelf now contains {_library.Sounds.Count} sound(s).";
+            ProgressVisibility = Visibility.Hidden;
+        }
+
+        private async void RescanFullLibrary_Click(object sender, RoutedEventArgs e)
+        {
+            if (MessageBox.Show("This rebuilds your SoundShelf library from scratch. This may take a while.\n\nAre you sure?", "Clear SoundShelf library?", MessageBoxButton.YesNo, MessageBoxImage.Question) !=
                 MessageBoxResult.Yes)
                 return;
 
             _library.Clear();
-            _library.Save();
-
-            CurrentSound = null;
-            ApplySearchFilter();
-
-            MessageBox.Show("Your SoundShelf library is now empty. Configure some rootfolders and Scan to detect sound files on your computer.", "Library cleared", MessageBoxButton.OK, MessageBoxImage.Information);
+            await ScanInBackground();
+            ScanProgressMessage = $"Your SoundShelf now contains {_library.Sounds.Count} sound(s).";
         }
 
         private void ApplySearchFilter()
@@ -126,59 +147,68 @@ namespace SoundShelf
                     s.MetaData?.Title?.ToLowerInvariant().Contains(query) == true ||
                     s.MetaData?.Artist?.ToLowerInvariant().Contains(query) == true);
 
-            ShowResultsInUI(filtered);
+
+            var results = ResultVisualizationMode switch
+            {
+                ResultVisualizationMode.Filename => filtered.Select(sound => new SearchHit(sound.FileName, sound)),
+                ResultVisualizationMode.Title => filtered.Select(sound => new SearchHit(sound.MetaData?.Title ?? "<?>", sound)),
+                ResultVisualizationMode.Comment => filtered.Select(sound => new SearchHit(sound.MetaData?.Comment ?? "<?>", sound)),
+                _ => throw new NotSupportedException($"Unknown result visualization mode: {ResultVisualizationMode}")
+            };
+
+            ShowResultsInUI(results.ToList());
         }
 
-        private void ShowResultsInUI(List<SoundFileInfo> sounds)
+        private void ShowResultsInUI(List<SearchHit> searchHits)
         {
             Dispatcher.Invoke(() =>
             {
-                CountLabel = $"{sounds.Count} sound(s)";
+                CountLabel = $"{searchHits.Count} sound(s)";
                 Results.Clear();
-                foreach (var sound in sounds)
+                foreach (var hit in searchHits)
                 {
-                    Results.Add(sound);
+                    Results.Add(hit);
                 }
             });
         }
 
         private void SoundList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is SoundFileInfo selected)
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is SearchHit selected)
             {
-                CurrentSound = selected;
-                _soundPlayer.Load(selected.FilePath);
+                CurrentSoundFile = selected.SoundFile;
+                _soundPlayer.Load(selected.SoundFile.FilePath);
                 _soundPlayer.Play();
             }
             else
             {
-                CurrentSound = null;
+                CurrentSoundFile = null;
             }
         }
 
         private void PlayButton_Click(object sender, RoutedEventArgs e)
         {
-            Play();
+            if (_soundPlayer.IsPlaying)
+                _soundPlayer.Stop();
+            else
+            {
+                Play();
+            }
         }
 
         private void Play()
         {
-            if (CurrentSound == null) return;
+            if (CurrentSoundFile == null) return;
 
-            if (WaveformViewer.HasSelection)
+            if (WaveformViewer.HasSliceSelection)
             {
-                _soundPlayer.Play(WaveformViewer.SelectionStart, WaveformViewer.SelectionEnd);
+                _soundPlayer.Play(WaveformViewer.SliceStart, WaveformViewer.SliceEnd);
             }
             else
             {
                 _soundPlayer.Play();
                 _soundPlayer.JumpTo(TimeCursor);
             }
-        }
-
-        private void StopButton_Click(object sender, RoutedEventArgs e)
-        {
-            _soundPlayer.Stop();
         }
 
         private void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
@@ -194,7 +224,7 @@ namespace SoundShelf
 
         private void ExportSelectionButton_OnClick(object sender, RoutedEventArgs e)
         {
-            if (!WaveformViewer.HasSelection)
+            if (!WaveformViewer.HasSliceSelection)
             {
                 MessageBox.Show("Export slice only works when you selected a slice of the wave.");
                 return;
@@ -209,17 +239,20 @@ namespace SoundShelf
 
             if (fileDlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                SliceExporter.ExportSlice(CurrentSound.FilePath, fileDlg.FileName, WaveformViewer.SelectionStart, WaveformViewer.SelectionEnd - WaveformViewer.SelectionStart);
+                SoundSliceExporter.ExportSlice(CurrentSoundFile!.FilePath, fileDlg.FileName, WaveformViewer.SliceStart, WaveformViewer.SliceEnd - WaveformViewer.SliceStart);
             }
         }
 
-        public SoundFileInfo? CurrentSound
+        /// <summary>
+        /// The SoundFile currently showing in the SoundViewer.
+        /// </summary>
+        public SoundFile? CurrentSoundFile
         {
-            get => _currentSound;
-            set => SetField(ref _currentSound, value);
+            get => _currentSoundFile;
+            set => SetField(ref _currentSoundFile, value);
         }
 
-        public ObservableCollection<SoundFileInfo> Results { get; } = new();
+        public ObservableCollection<SearchHit> Results { get; } = new();
 
         public int ScanTaskTotal
         {
@@ -295,6 +328,20 @@ namespace SoundShelf
                 SetField(ref _libraryRootPaths, value);
                 _configuration.LibraryRoots = value.Split("\n").Select(root => root.Trim()).ToList();
                 SaveConfiguration();
+            }
+        }
+
+        public ResultVisualizationMode ResultVisualizationMode
+        {
+            get => _resultVisualizationMode;
+            set
+            {
+                if (value == _resultVisualizationMode) return;
+
+                SetField(ref _resultVisualizationMode, value);
+                _configuration.ResultVisualizationMode = value;
+                SaveConfiguration();
+                ApplySearchFilter();
             }
         }
 

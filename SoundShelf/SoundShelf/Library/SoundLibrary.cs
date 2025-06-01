@@ -7,7 +7,7 @@ namespace SoundShelf.Library
     public class SoundLibrary(string indexFilePath)
     {
         internal readonly HashSet<string> KnownSoundFiles = new();
-        public List<SoundFileInfo> Sounds { get; } = new();
+        public List<SoundFile> Sounds { get; } = new();
 
         public void Clear()
         {
@@ -21,7 +21,7 @@ namespace SoundShelf.Library
                 return;
 
             var json = File.ReadAllText(indexFilePath);
-            var sounds = JsonSerializer.Deserialize<List<SoundFileInfo>>(json);
+            var sounds = JsonSerializer.Deserialize<List<SoundFile>>(json);
 
             Clear();
             foreach (var sound in sounds!)

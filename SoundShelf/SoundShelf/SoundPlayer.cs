@@ -4,6 +4,9 @@ using NAudio.Wave;
 
 namespace SoundShelf
 {
+    /// <summary>
+    /// Plays sounds from wav files with some playback controls.
+    /// </summary>
     internal class SoundPlayer : IDisposable
     {
         private readonly IWavePlayer _wavePlayer = new WaveOutEvent();

@@ -2,8 +2,12 @@
 
 namespace SoundShelf
 {
-    internal static class SliceExporter
+    
+    internal static class SoundSliceExporter
     {
+        /// <summary>
+        /// Exports a timeslice of a wav file to a new wav file.
+        /// </summary>
         public static void ExportSlice(string sourcePath, string outputPath, TimeSpan startTime, TimeSpan duration)
         {
             using var reader = new AudioFileReader(sourcePath);

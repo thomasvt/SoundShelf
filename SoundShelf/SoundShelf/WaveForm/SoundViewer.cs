@@ -6,11 +6,11 @@ using System.Windows.Shapes;
 
 namespace SoundShelf.WaveForm
 {
-    public class WaveFormViewer : Control
+    public class SoundViewer : Control
     {
-        static WaveFormViewer()
+        static SoundViewer()
         {
-            DefaultStyleKeyProperty.OverrideMetadata(typeof(WaveFormViewer), new FrameworkPropertyMetadata(typeof(WaveFormViewer)));
+            DefaultStyleKeyProperty.OverrideMetadata(typeof(SoundViewer), new FrameworkPropertyMetadata(typeof(SoundViewer)));
         }
 
         private readonly WaveFormGenerator _waveFormGenerator = new();
@@ -109,9 +109,9 @@ namespace SoundShelf.WaveForm
                         var endSec = (x + width) / canvasWidth * totalSec;
 
                         
-                        SelectionStart = TimeSpan.FromSeconds(startSec);
-                        SelectionEnd = TimeSpan.FromSeconds(endSec);
-                        HasSelection = true;
+                        SliceStart = TimeSpan.FromSeconds(startSec);
+                        SliceEnd = TimeSpan.FromSeconds(endSec);
+                        HasSliceSelection = true;
                     }
                 }
                 else
@@ -125,9 +125,9 @@ namespace SoundShelf.WaveForm
 
         private void ClearSelection()
         {
-            SelectionStart = TimeSpan.FromSeconds(0);
-            SelectionEnd = TimeSpan.FromSeconds(0);
-            HasSelection = false;
+            SliceStart = TimeSpan.FromSeconds(0);
+            SliceEnd = TimeSpan.FromSeconds(0);
+            HasSliceSelection = false;
         }
 
         private void DrawWaveform(string? filePath)
@@ -188,10 +188,10 @@ namespace SoundShelf.WaveForm
         }
 
         public readonly static DependencyProperty SoundFilePathProperty = DependencyProperty.Register(
-            nameof(SoundFilePath), typeof(string), typeof(WaveFormViewer), new FrameworkPropertyMetadata(
+            nameof(SoundFilePath), typeof(string), typeof(SoundViewer), new FrameworkPropertyMetadata(
                 (o, args) =>
                 {
-                    var waveFormViewer = (o as WaveFormViewer)!;
+                    var waveFormViewer = (o as SoundViewer)!;
                     waveFormViewer.DrawWaveform((string?)args.NewValue);
                     waveFormViewer.ClearSelection();
                 }));
@@ -202,40 +202,40 @@ namespace SoundShelf.WaveForm
             set => SetValue(SoundFilePathProperty, value);
         }
 
-        public readonly static DependencyProperty SelectionStartProperty = DependencyProperty.Register(
-            nameof(SelectionStart), typeof(TimeSpan), typeof(WaveFormViewer), new PropertyMetadata(default(TimeSpan)));
+        public readonly static DependencyProperty SliceStartProperty = DependencyProperty.Register(
+            nameof(SliceStart), typeof(TimeSpan), typeof(SoundViewer), new PropertyMetadata(default(TimeSpan)));
 
-        public TimeSpan SelectionStart
+        public TimeSpan SliceStart
         {
-            get => (TimeSpan)GetValue(SelectionStartProperty);
-            set => SetValue(SelectionStartProperty, value);
+            get => (TimeSpan)GetValue(SliceStartProperty);
+            set => SetValue(SliceStartProperty, value);
         }
 
-        public readonly static DependencyProperty SelectionEndProperty = DependencyProperty.Register(
-            nameof(SelectionEnd), typeof(TimeSpan), typeof(WaveFormViewer), new PropertyMetadata(default(TimeSpan)));
+        public readonly static DependencyProperty SliceEndProperty = DependencyProperty.Register(
+            nameof(SliceEnd), typeof(TimeSpan), typeof(SoundViewer), new PropertyMetadata(default(TimeSpan)));
 
-        public TimeSpan SelectionEnd
+        public TimeSpan SliceEnd
         {
-            get => (TimeSpan)GetValue(SelectionEndProperty);
-            set => SetValue(SelectionEndProperty, value);
+            get => (TimeSpan)GetValue(SliceEndProperty);
+            set => SetValue(SliceEndProperty, value);
         }
 
-        public readonly static DependencyProperty HasSelectionProperty = DependencyProperty.Register(
-            nameof(HasSelection), typeof(bool), typeof(WaveFormViewer), new PropertyMetadata(default(bool)));
+        public readonly static DependencyProperty HasSliceSelectionProperty = DependencyProperty.Register(
+            nameof(HasSliceSelection), typeof(bool), typeof(SoundViewer), new PropertyMetadata(default(bool)));
 
-        public bool HasSelection
+        public bool HasSliceSelection
         {
-            get => (bool)GetValue(HasSelectionProperty);
-            set => SetValue(HasSelectionProperty, value);
+            get => (bool)GetValue(HasSliceSelectionProperty);
+            set => SetValue(HasSliceSelectionProperty, value);
         }
 
         public readonly static DependencyProperty TimeCursorProperty = DependencyProperty.Register(
-            nameof(TimeCursor), typeof(TimeSpan), typeof(WaveFormViewer), new FrameworkPropertyMetadata(
+            nameof(TimeCursor), typeof(TimeSpan), typeof(SoundViewer), new FrameworkPropertyMetadata(
                 default(TimeSpan),
                 FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
                 (o, args) =>
                 {
-                    (o as WaveFormViewer)?.UpdateCursor((TimeSpan)args.NewValue);
+                    (o as SoundViewer)?.UpdateCursor((TimeSpan)args.NewValue);
                 }));
 
         public TimeSpan TimeCursor
