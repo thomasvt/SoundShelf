@@ -22,6 +22,7 @@ namespace SoundShelf
     /// </summary>
     public partial class MainWindow : Window, INotifyPropertyChanged, IDisposable
     {
+        private List<SearchHit>? _searchableSounds;
         private readonly SoundPlayer _soundPlayer = new();
         private int _scanTaskTotal;
         private int _scanTaskDone;
@@ -60,6 +61,7 @@ namespace SoundShelf
             try
             {
                 _library.Load();
+                _searchableSounds = null;
             }
             catch (Exception e)
             {
@@ -116,6 +118,7 @@ namespace SoundShelf
                     ScanProgressMessage = $"{progress.NewDone} of {progress.NewTotal} new sounds added {removeMsg}";
                 }));
 
+                _searchableSounds = null;
                 ReprocessSearch();
                 
                 return progress;
@@ -144,17 +147,17 @@ namespace SoundShelf
         {
             var query = SearchQuery.Trim().ToLowerInvariant();
 
-            var allSounds = ResultVisualizationMode switch
+            _searchableSounds ??= (ResultVisualizationMode switch
             {
                 ResultVisualizationMode.Filename => _library.Sounds.Select(sound => new SearchHit(sound.FileName, GetTags(sound), sound)),
-                ResultVisualizationMode.Title => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Title ?? "<?>", GetTags(sound), sound)),
-                ResultVisualizationMode.Comment => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Comment ?? "<?>", GetTags(sound), sound)),
+                ResultVisualizationMode.Title => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Title ?? sound.FileName, GetTags(sound), sound)),
+                ResultVisualizationMode.Comment => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Comment ?? sound.FileName, GetTags(sound), sound)),
                 _ => throw new NotSupportedException($"Unknown result visualization mode: {ResultVisualizationMode}")
-            };
+            }).ToList();
 
             var filtered = string.IsNullOrWhiteSpace(query)
-                ? allSounds
-                : allSounds.Where(s =>
+                ? _searchableSounds
+                : _searchableSounds.Where(s =>
                     s.Label.ToLowerInvariant().Contains(query) ||
                     s.Tags.Any(t => t.ToLowerInvariant().Contains(query))
                     );
@@ -234,9 +237,9 @@ namespace SoundShelf
 
         private void ExportSelectionButton_OnClick(object sender, RoutedEventArgs e)
         {
-            if (!WaveformViewer.HasSliceSelection)
+            if (CurrentSoundFile == null || !WaveformViewer.HasSliceSelection)
             {
-                MessageBox.Show("Export slice only works when you selected a slice of the wave.");
+                MessageBox.Show("Export slice only works when you selected a slice in the wave viewer.");
                 return;
             }
             var fileDlg = new SaveFileDialog
@@ -244,7 +247,7 @@ namespace SoundShelf
                 Filter = "Wave files (*.wav)|*.wav",
                 DefaultExt = ".wav",
                 OverwritePrompt = true,
-                FileName = "slice.wav"
+                FileName = Path.GetFileNameWithoutExtension(CurrentSoundFile.FileName) + "_slice.wav"
             };
 
             if (fileDlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)

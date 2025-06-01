@@ -8,8 +8,7 @@
         xmlns:library="clr-namespace:SoundShelf.Library"
         mc:Ignorable="d"
         Title="SoundShelf" Height="800" Width="900"
-        Loaded="MainWindow_OnLoaded"
-        PreviewKeyDown="MainWindow_OnPreviewKeyDown">
+        Loaded="MainWindow_OnLoaded">
 
     <Window.Resources>
         <local:EnumToBoolConverter x:Key="EnumToBoolConverter" />
@@ -19,7 +18,7 @@
 
         <!-- Browse -->
 
-        <TabItem Header="Browse">
+        <TabItem Header="Browse" PreviewKeyDown="MainWindow_OnPreviewKeyDown">
             <DockPanel Margin="10">
 
                 <!-- top stuff -->
@@ -92,8 +91,9 @@
             <DockPanel>
 
                 <!-- Search result visualization settings -->
+                <TextBlock DockPanel.Dock="Top" Text="Text to use as sound label: (falls back to filename is empty)" VerticalAlignment="Center" Margin="8,8,4,0" Foreground="#777" />
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" VerticalAlignment="Center" Margin="4">
-                    <TextBlock Text="Label for sounds:" VerticalAlignment="Center" Margin="0,0,4,0" Foreground="#777" />
+                    
                     <RadioButton Content="Filename" Margin="4"
                                  GroupName="ResultVisualizationMode"
                                  ToolTip="Shows sounds by their filename in the search result list."
@@ -118,12 +118,12 @@
                     <Button Content="Scan changes" Padding="4"  Margin="4" Click="ScanChangesLibrary_Click"/>
                     <Button DockPanel.Dock="Right" Content="Full rescan" Padding="4" Margin="4" Click="RescanFullLibrary_Click"/>
                 </StackPanel>
+ 
+                <Label DockPanel.Dock="Top" Content="Tags ignorelist (comma separated, case insensitive):" Foreground="#777" Margin="0 16 0 0"></Label>
+                <TextBox DockPanel.Dock="Top" Text="{Binding TagIgnoreList}" Margin="8 4"></TextBox>
 
-                <Label DockPanel.Dock="Top" Content="Tags ignorelist (comma separated, case insensitive):" Foreground="#777"></Label>
-                <TextBox DockPanel.Dock="Top" Text="{Binding TagIgnoreList}"></TextBox>
-
-                <Label DockPanel.Dock="Top" Content="Library root paths (one per line):" Foreground="#777"></Label>
-                <TextBox Text="{Binding LibraryRootPaths}"></TextBox>
+                <Label DockPanel.Dock="Top" Content="Library root paths (one per line):" Foreground="#777" Margin="0 16 0 0"></Label>
+                <TextBox Text="{Binding LibraryRootPaths}" Margin="8 4"></TextBox>
             </DockPanel>
         </TabItem>
     </TabControl>

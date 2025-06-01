@@ -137,6 +137,7 @@ namespace SoundShelf.WaveForm
             if (filePath == null) return;
 
             AddCursorLine();
+            AddBaseLine();
 
             var canvasWidth = _canvas.ActualWidth;
             var canvasHeight = _canvas.ActualHeight;
@@ -176,6 +177,20 @@ namespace SoundShelf.WaveForm
             };
 
             _canvas.Children.Add(_waveformCursorLine);
+        }
+
+        private void AddBaseLine()
+        {
+            var line = new Line
+            {
+                Stroke = Brushes.DimGray,
+                StrokeThickness = 1,
+                X2 = _canvas!.ActualWidth,
+                Y1 = _canvas!.ActualHeight * 0.5f,
+                Y2 = _canvas!.ActualHeight * 0.5f,
+            };
+
+            _canvas.Children.Add(line);
         }
 
         private void UpdateCursor(TimeSpan time)
