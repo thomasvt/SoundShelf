@@ -173,7 +173,7 @@ namespace SoundShelf
         {
             Dispatcher.Invoke(() =>
             {
-                CountLabel = $"{searchHits.Count} sound(s)";
+                CountLabel = $"{searchHits.Count} matche(s) found";
                 Results.Clear();
                 foreach (var hit in searchHits)
                 {
