@@ -1,4 +1,4 @@
-![screenshot](https://github.com/thomasvt/SoundShelf/blob/screenshot.png)
+![screenshot](https://github.com/thomasvt/SoundShelf/blob/master/Screenshot.png)
 
 A very simple sound effect library browser. Made for my gamedev work.
 
