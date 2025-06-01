@@ -28,9 +28,10 @@ The UI is still quite minimal:
 
 ## Scanning your library
 
-In the Manage tab you can (manually) add rootfolders where your sound files are, then click the either of the Scan buttons.
+In the Manage tab you can (manually) add rootfolders where your sound files are, then click either of the Scan buttons:
 
-The `Scan changes` button only processes new and deleted sound files. The `Full rescan` clears your entire library and scans everything again.
+* `Scan changes` processes new and deleted sound files.
+* `Full rescan` clears your entire library and scans everything again.
 
 ## Tag ignore list
 
