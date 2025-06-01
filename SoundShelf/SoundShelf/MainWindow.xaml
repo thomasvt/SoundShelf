@@ -6,59 +6,73 @@
         xmlns:local="clr-namespace:SoundShelf"
         xmlns:waveForm="clr-namespace:SoundShelf.WaveForm"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800"
+        Title="SoundShelf" Height="800" Width="900"
         Loaded="MainWindow_OnLoaded"
         PreviewKeyDown="MainWindow_OnPreviewKeyDown">
-    <Grid>
-        <DockPanel Margin="10">
+    <TabControl>
 
-            <!-- top stuff -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Vertical">
-                <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Top"></TextBox>
-            </StackPanel>
+        <!-- Browse -->
 
-            <!-- bottom stuff -->
-            <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical">
+        <TabItem Header="Browse">
+            <DockPanel Margin="10">
+
+                <!-- top stuff -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Vertical">
+                    <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Top"></TextBox>
+                </StackPanel>
+
+                <!-- bottom stuff -->
                 <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical">
-                    <Label Content="{Binding CountLabel}"></Label>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical">
+                        <Label Content="{Binding CountLabel}"></Label>
 
-                    <waveForm:WaveFormViewer DockPanel.Dock="Bottom" x:Name="WaveformViewer" SoundFilePath="{Binding CurrentSound.FilePath}" 
+                        <waveForm:WaveFormViewer DockPanel.Dock="Bottom" x:Name="WaveformViewer" SoundFilePath="{Binding CurrentSound.FilePath}" 
                                              TimeCursor="{Binding TimeCursor, Mode=TwoWay}" 
                                              SelectionEnd="{Binding StopAtTime, Mode=TwoWay}"
                                              Height="100" Background="#222" />
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="▶" Padding="8" Margin="4" Click="PlayButton_Click"></Button>
-                        <Button Content="◼" Padding="8" Margin="4" Click="StopButton_Click"></Button>
-                        <Button Content="Export slice" Margin="4" Padding="8" Click="ExportSelectionButton_OnClick"></Button>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="▶" Padding="8" Margin="4" Click="PlayButton_Click"></Button>
+                            <Button Content="◼" Padding="8" Margin="4" Click="StopButton_Click"></Button>
+                            <Button Content="Export slice" Margin="4" Padding="8" Click="ExportSelectionButton_OnClick"></Button>
+                        </StackPanel>
                     </StackPanel>
 
-                    <DockPanel >
-                        <Button DockPanel.Dock="Right" Content="..." Padding="4" Margin="4" Click="ConfigureLibrary_Click"/>
-                        <Button DockPanel.Dock="Right" Content="Clear" Padding="4" Margin="4" Click="ClearLibrary_Click"/>
-                        <Button Content="Scan library" Padding="4"  Margin="4" Click="RescanLibrary_Click"/>
-                    </DockPanel>
-
-                    <Grid>
-                        <ProgressBar Height="4" Margin="4" Maximum="{Binding ScanTaskTotal}" Value="{Binding ScanTaskDone}" />
-                        <Label Content="{Binding ScanProgressMessage}"></Label>
-                    </Grid>
                 </StackPanel>
 
-            </StackPanel>
-
-            <!-- Sound search results -->
-            <ListBox ItemsSource="{Binding Results}"
+                <!-- Sound search results -->
+                <ListBox ItemsSource="{Binding Results}"
                      SelectionChanged="SoundList_SelectionChanged">
-                <ListBox.ItemTemplate>
-                    <DataTemplate DataType="{x:Type local:SoundFileInfo}">
-                        <StackPanel>
-                            <TextBlock Text="{Binding FileName}" FontWeight="Bold"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type local:SoundFileInfo}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding FileName}" FontWeight="Bold"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-        </DockPanel>
-    </Grid>
+            </DockPanel>
+        </TabItem>
+
+        <!-- Manage -->
+
+        <TabItem Header="Manage">
+            <DockPanel>
+                <Grid DockPanel.Dock="Bottom" Height="24">
+                    <ProgressBar Height="16" Margin="4" Maximum="{Binding ScanTaskTotal}" Value="{Binding ScanTaskDone}"
+                                 Visibility="{Binding ProgressVisibility}"/>
+                    <Label Padding="8 4" Content="{Binding ScanProgressMessage}"></Label>
+                </Grid>
+
+                <StackPanel DockPanel.Dock="Bottom">
+                    <Button Content="Scan changes" Padding="4"  Margin="4" Click="RescanLibrary_Click"/>
+                    <Button DockPanel.Dock="Right" Content="Clear library" Padding="4" Margin="4" Click="ClearLibrary_Click"/>
+                </StackPanel>
+
+                <Label DockPanel.Dock="Top" Content="Library root paths (to scan):"></Label>
+                <TextBox Text="{Binding LibraryRootPaths}"></TextBox>
+            </DockPanel>
+        </TabItem>
+    </TabControl>
 </Window>

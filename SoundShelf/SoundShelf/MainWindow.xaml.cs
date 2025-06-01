@@ -1,12 +1,12 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
+using SoundShelf.Library;
 using File = System.IO.File;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = System.Windows.MessageBox;
@@ -20,10 +20,9 @@ namespace SoundShelf
     public partial class MainWindow : Window, INotifyPropertyChanged, IDisposable
     {
         private readonly SoundPlayer _soundPlayer = new();
-        private List<SoundFileInfo> _filterResults;
         private int _scanTaskTotal;
         private int _scanTaskDone;
-        private readonly SoundLibrary _soundLibrary = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundShelf", "index.json"));
+        private readonly SoundLibrary _library = new(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundShelf", "index.json"));
         private readonly string _configFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SoundShelf", "config.json");
         private string _searchQuery = "";
         private string _countLabel;
@@ -31,6 +30,9 @@ namespace SoundShelf
         private TimeSpan _cursor;
         private TimeSpan _stopAtTime;
         private string _scanProgressMessage;
+        private Visibility _progressVisibility = Visibility.Hidden;
+        private Configuration _configuration;
+        private string _libraryRootPaths;
 
         public MainWindow()
         {
@@ -42,22 +44,27 @@ namespace SoundShelf
         {
             CompositionTarget.Rendering += OnRendering;
 
+            LoadConfiguration();
+            _library.Load();
+            ScanProgressMessage = $"Your SoundShelf contains {_library.Sounds.Count} sound(s).";
+            ApplySearchFilter();
+        }
+
+        private void LoadConfiguration()
+        {
             if (!File.Exists(_configFilePath))
             {
-                var configuration = new Configuration();
-                configuration.LibraryRoots.Add("C:\\sounds");
-                configuration.SaveToFile(_configFilePath);
+                _configuration = new Configuration();
+                return;
             }
-            else
-            {
-                var configuration = Configuration.LoadFromFile(_configFilePath);
-                foreach (var libraryRoot in configuration.LibraryRoots)
-                {
-                    _soundLibrary.AddLibraryRoot(libraryRoot);
-                }
-                _soundLibrary.LoadIndex();
-                ShowResultsInUI(_soundLibrary.Sounds);
-            }
+
+            _configuration = Configuration.LoadFromFile(_configFilePath);
+            LibraryRootPaths = string.Join(Environment.NewLine, _configuration.LibraryRoots);
+        }
+
+        private void SaveConfiguration()
+        {
+            _configuration.SaveToFile(_configFilePath);
         }
 
         private void OnRendering(object? sender, EventArgs e)
@@ -66,6 +73,7 @@ namespace SoundShelf
             {
                 var currentTime = _soundPlayer.CurrentTime!.Value;
                 WaveformViewer.TimeCursor = currentTime;
+                Console.WriteLine(currentTime);
             }
         }
 
@@ -76,31 +84,35 @@ namespace SoundShelf
 
             Task.Run(() =>
             {
-                _soundLibrary.Sync((done, total) => Dispatcher.Invoke(() =>
+                var scanner = new LibraryScanner(_library);
+                var progress = scanner.Scan(_configuration.LibraryRoots, (progress) => Dispatcher.Invoke(() =>
                 {
-                    ScanTaskDone = done;
-                    ScanTaskTotal = total;
-                    ScanProgressMessage = $"{done} / {total}";
+                    var removeMsg = progress.DeletesDone > 0 ? $"- {progress.DeletesDone} sounds removed" : "";
+                    ProgressVisibility = Visibility.Visible;
+                    ScanTaskDone = progress.NewDone;
+                    ScanTaskTotal = progress.NewTotal;
+                    ScanProgressMessage = $"{progress.NewDone} of {progress.NewTotal} new sounds added {removeMsg}";
                 }));
-                Dispatcher.Invoke(ApplySearchFilter);
+                ApplySearchFilter();
+                ScanProgressMessage = $"{progress.NewTotal} new - {progress.DeletesDone} removed. SoundShelf now contains {_library.Sounds.Count} sound(s).";
+                ProgressVisibility = Visibility.Hidden;
             });
+
         }
 
         private void ClearLibrary_Click(object sender, RoutedEventArgs e)
         {
-            _soundLibrary.Clear();
+            if (MessageBox.Show("This clears your SoundShelf library. No sound files are physically deleted. Are you sure?", "Are you sure?", MessageBoxButton.YesNo, MessageBoxImage.Question) !=
+                MessageBoxResult.Yes)
+                return;
+
+            _library.Clear();
+            _library.Save();
+
             CurrentSound = null;
             ApplySearchFilter();
-        }
 
-        private void ConfigureLibrary_Click(object sender, RoutedEventArgs e)
-        {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo(_configFilePath) { UseShellExecute = true }
-            };
-
-            process.Start();
+            MessageBox.Show("Your SoundShelf library is now empty. Configure some rootfolders and Scan to detect sound files on your computer.", "Library cleared", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void ApplySearchFilter()
@@ -108,8 +120,8 @@ namespace SoundShelf
             var query = SearchQuery.Trim().ToLowerInvariant();
 
             var filtered = string.IsNullOrWhiteSpace(query)
-                ? _soundLibrary.Sounds
-                : _soundLibrary.Sounds.FindAll(s =>
+                ? _library.Sounds
+                : _library.Sounds.FindAll(s =>
                     s.FileName.ToLowerInvariant().Contains(query) ||
                     s.MetaData?.Title?.ToLowerInvariant().Contains(query) == true ||
                     s.MetaData?.Artist?.ToLowerInvariant().Contains(query) == true);
@@ -207,7 +219,7 @@ namespace SoundShelf
             set => SetField(ref _currentSound, value);
         }
 
-        public ObservableCollection<SoundFileInfo> Results { get; }= new();
+        public ObservableCollection<SoundFileInfo> Results { get; } = new();
 
         public int ScanTaskTotal
         {
@@ -265,6 +277,25 @@ namespace SoundShelf
         {
             get => _scanProgressMessage;
             set => SetField(ref _scanProgressMessage, value);
+        }
+
+        public Visibility ProgressVisibility
+        {
+            get => _progressVisibility;
+            set => SetField(ref _progressVisibility, value);
+        }
+
+        public string LibraryRootPaths
+        {
+            get => _libraryRootPaths;
+            set
+            {
+                if (value == _libraryRootPaths) return;
+
+                SetField(ref _libraryRootPaths, value);
+                _configuration.LibraryRoots = value.Split("\n").Select(root => root.Trim()).ToList();
+                SaveConfiguration();
+            }
         }
 
         #region PropertyChanged
