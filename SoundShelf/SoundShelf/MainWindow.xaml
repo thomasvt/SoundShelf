@@ -5,30 +5,68 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:SoundShelf"
         xmlns:waveForm="clr-namespace:SoundShelf.WaveForm"
-        xmlns:library="clr-namespace:SoundShelf.Library"
+        xmlns:shortLists="clr-namespace:SoundShelf.ShortLists"
         mc:Ignorable="d"
-        Title="SoundShelf" Height="800" Width="900"
-        Loaded="MainWindow_OnLoaded">
+        Title="SoundShelf" Height="900" Width="1200"
+        Loaded="MainWindow_OnLoaded"
+        PreviewKeyDown="MainWindow_OnPreviewKeyDown"
+        >
 
     <Window.Resources>
         <local:EnumToBoolConverter x:Key="EnumToBoolConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <local:BooleanToInvertedVisibilityConverter x:Key="BooleanToInvertedVisibilityConverter" />
     </Window.Resources>
 
     <TabControl>
 
         <!-- Browse -->
 
-        <TabItem Header="Browse" PreviewKeyDown="MainWindow_OnPreviewKeyDown">
+        <TabItem Header="Browse" PreviewKeyDown="BrowseTab_OnPreviewKeyDown">
             <DockPanel Margin="10">
+
+                <!-- side panel right -->
+
+                <StackPanel DockPanel.Dock="Right" Width="180" Margin="12 0 0 0">
+                    <Label FontWeight="Bold">Full library</Label>
+                    <RadioButton Content="Show full library" GroupName="ShortListGroup" Click="ShowFullCatalogButton_Click" IsChecked="True"></RadioButton>
+                    <StackPanel Orientation="Horizontal" Margin="0 16 0 0">
+
+                        <Path Stretch="Uniform" Width="16" Height="16"  Data="M671.79,20.848L774.592,337.241L1107.27,337.241C1144.27,337.241 1177.07,361.069 1188.51,396.264C1199.94,431.459 1187.41,470.014 1157.48,491.766L888.335,687.307L991.138,1003.7C1002.57,1038.89 990.046,1077.45 960.107,1099.2C930.169,1120.95 889.629,1120.95 859.691,1099.2L590.551,903.66L321.411,1099.2C291.473,1120.95 250.933,1120.95 220.995,1099.2C191.057,1077.45 178.529,1038.89 189.965,1003.7L292.767,687.307L23.627,491.766C-6.311,470.014 -18.838,431.459 -7.403,396.264C4.032,361.069 36.83,337.241 73.835,337.241L406.51,337.241L509.313,20.848C520.748,-14.347 553.545,-38.175 590.551,-38.175C627.557,-38.175 660.354,-14.347 671.79,20.848Z" 
+                              Fill="#383F48"/>
+                        <Label FontWeight="Bold" >Shortlists</Label>
+                    </StackPanel>
+                    <TextBlock Foreground="#666" TextWrapping="Wrap">Create shortlists for tracking favorites or guiding selection processes.</TextBlock>
+                    <ItemsControl ItemsSource="{Binding ShortLists}" Margin="0 16 0 0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type shortLists:ShortList}">
+                                <DockPanel Margin="0 4">
+                                    <Button DockPanel.Dock="Right" Margin="4 0 0 0" Click="DeleteShortListButton_Click" Content="X" Padding="4 2" ToolTip="Delete this shortlist"></Button>
+                                    <RadioButton GroupName="ShortListGroup" Content="{Binding Name}" Click="ShowShortListButton_Click">
+                                    </RadioButton>
+                                </DockPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="New shortlist: " Foreground="#444" Margin="0 20 0 0" ></TextBlock>
+                    <DockPanel Margin="0 4">
+                        <Button DockPanel.Dock="Right" Content="+" Click="AddShortlistButton_Click" Padding="4 2"></Button>
+                        <TextBox Text="{Binding NewShortListName}" Margin="0 0 4 0"></TextBox>
+                    </DockPanel>
+                </StackPanel>
 
                 <!-- top stuff -->
                 <DockPanel DockPanel.Dock="Top" Margin="0 0 0 8" >
                     <DockPanel >
-                        <TextBlock DockPanel.Dock="Left" Text="🔍"
-                               VerticalAlignment="Center"
-                               FontSize="14"
-                               Margin="0,0,4,0"/>
-                        <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Top"></TextBox>
+                        <Path
+                            Width="16"
+                            Height="16"
+                            Fill="Black"
+                            Stretch="Uniform"
+                            Margin="0 0 8 0"
+                            Data="M15.5,14.1 L11.7,10.3 C12.5,9.2 13,7.9 13,6.5 C13,2.9 10.1,0 6.5,0 C2.9,0 0,2.9 0,6.5 C0,10.1 2.9,13 6.5,13 C7.9,13 9.2,12.5 10.3,11.7 L14.1,15.5 C14.3,15.7 14.6,15.8 14.8,15.8 C15.1,15.8 15.4,15.7 15.6,15.5 C16,15.1 16,14.5 15.5,14.1 Z M6.5,11 C4,11 2,9 2,6.5 C2,4 4,2 6.5,2 C9,2 11,4 11,6.5 C11,9 9,11 6.5,11 Z"/>
+
+                        <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" DockPanel.Dock="Top" ToolTip="Search by one or more words, separated by space."></TextBox>
 
                     </DockPanel>
                 </DockPanel>
@@ -51,14 +89,54 @@
 
                 </StackPanel>
 
+                <!--  Shortlist membership for Sound item -->
+                <Popup x:Name="ShortListPopup"
+                       Placement="Bottom"
+                       StaysOpen="False"
+                       AllowsTransparency="True"
+                       PopupAnimation="Fade"
+                >
+                    <Border Background="White" BorderBrush="Gray" BorderThickness="1" Padding="8" CornerRadius="4">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Path Stretch="Uniform" Width="16" Height="16"  Data="M671.79,20.848L774.592,337.241L1107.27,337.241C1144.27,337.241 1177.07,361.069 1188.51,396.264C1199.94,431.459 1187.41,470.014 1157.48,491.766L888.335,687.307L991.138,1003.7C1002.57,1038.89 990.046,1077.45 960.107,1099.2C930.169,1120.95 889.629,1120.95 859.691,1099.2L590.551,903.66L321.411,1099.2C291.473,1120.95 250.933,1120.95 220.995,1099.2C191.057,1077.45 178.529,1038.89 189.965,1003.7L292.767,687.307L23.627,491.766C-6.311,470.014 -18.838,431.459 -7.403,396.264C4.032,361.069 36.83,337.241 73.835,337.241L406.51,337.241L509.313,20.848C520.748,-14.347 553.545,-38.175 590.551,-38.175C627.557,-38.175 660.354,-14.347 671.79,20.848Z" 
+                                      Fill="#383F48"/>
+                                <Label FontWeight="Bold">Assign to shortlists:</Label>
+                            </StackPanel>
+                            <ItemsControl Margin="0 8 0 0" ItemsSource="{Binding ShortListMemberships}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:ShortListMembership}">
+                                        <DockPanel Margin="0 4">
+                                            <CheckBox Content="{Binding ShortList.Name}" IsChecked="{Binding IsMember, Mode=TwoWay}" Checked="AddToShortList_Click" Unchecked="RemoveFromShortList_Click"></CheckBox>
+                                        </DockPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+
                 <!-- Sound search results -->
-                <ListBox ItemsSource="{Binding Results}"
-                     SelectionChanged="SoundList_SelectionChanged">
+                <ListBox ItemsSource="{Binding Results}" AlternationCount="2" SelectionChanged="SoundList_SelectionChanged">
                     <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type local:SearchHit}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding Label}" Margin="0 4 0 4" />
-                                <ItemsControl ItemsSource="{Binding Tags}" Margin="0 0 0 6">
+                        <DataTemplate DataType="{x:Type local:SearchableSound}">
+                            <StackPanel Orientation="Horizontal" Margin="8 6" Height="28">
+                                <Path Fill="Black" Width="20" Height="20" Margin="0 0 8 0" Stretch="Uniform" Data="M294.756,601.453C294.756,601.453 308.176,482.279 340.461,480.825C381.624,478.971 387.561,849.511 425.197,850.394C478.457,851.643 470.504,235.832 519.685,236.22C572.83,236.641 568.378,990.78 614.173,992.126C659.968,993.472 665.273,401.503 708.661,401.575C753.022,401.648 759.812,758.939 803.15,755.906C855.331,752.253 827.928,519.685 874.016,519.685C906.233,519.685 909.784,605.257 909.784,605.257">
+                                </Path>
+                                <TextBlock MinWidth="450" MaxWidth="450" TextWrapping="Wrap" Text="{Binding Label}" VerticalAlignment="Center" />
+
+                                <Path Stretch="Uniform" Width="16" Height="16" Visibility="{Binding IsInShortList, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                      Data="M671.79,20.848L774.592,337.241L1107.27,337.241C1144.27,337.241 1177.07,361.069 1188.51,396.264C1199.94,431.459 1187.41,470.014 1157.48,491.766L888.335,687.307L991.138,1003.7C1002.57,1038.89 990.046,1077.45 960.107,1099.2C930.169,1120.95 889.629,1120.95 859.691,1099.2L590.551,903.66L321.411,1099.2C291.473,1120.95 250.933,1120.95 220.995,1099.2C191.057,1077.45 178.529,1038.89 189.965,1003.7L292.767,687.307L23.627,491.766C-6.311,470.014 -18.838,431.459 -7.403,396.264C4.032,361.069 36.83,337.241 73.835,337.241L406.51,337.241L509.313,20.848C520.748,-14.347 553.545,-38.175 590.551,-38.175C627.557,-38.175 660.354,-14.347 671.79,20.848Z" 
+                                      MouseUp="ShortListContextMenuButton_MouseUp" MouseDown="ShortListCOntextMenuButton_MouseDown" Margin="16 0 0 0" Cursor="Hand"
+                                    Fill="#383F48" />
+
+                                <Path Stretch="Uniform" Width="16" Height="16" Visibility="{Binding IsInShortList, Converter={StaticResource BooleanToInvertedVisibilityConverter}}"
+                                      Data="M671.79,20.848L774.592,337.241L1107.27,337.241C1144.27,337.241 1177.07,361.069 1188.51,396.264C1199.94,431.459 1187.41,470.014 1157.48,491.766L888.335,687.307L991.138,1003.7C1002.57,1038.89 990.046,1077.45 960.107,1099.2C930.169,1120.95 889.629,1120.95 859.691,1099.2L590.551,903.66L321.411,1099.2C291.473,1120.95 250.933,1120.95 220.995,1099.2C191.057,1077.45 178.529,1038.89 189.965,1003.7L292.767,687.307L23.627,491.766C-6.311,470.014 -18.838,431.459 -7.403,396.264C4.032,361.069 36.83,337.241 73.835,337.241L406.51,337.241L509.313,20.848C520.748,-14.347 553.545,-38.175 590.551,-38.175C627.557,-38.175 660.354,-14.347 671.79,20.848Z" 
+                                      MouseUp="ShortListContextMenuButton_MouseUp" MouseDown="ShortListCOntextMenuButton_MouseDown" Margin="16 0 0 0" Cursor="Hand"
+                                      Fill="White" Stroke="#383F48" />
+
+                                <!-- tags -->
+                                <ItemsControl ItemsSource="{Binding Tags}" Margin="16 0 0 0" VerticalAlignment="Center">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <StackPanel Orientation="Horizontal" />
@@ -78,9 +156,43 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </StackPanel>
+
                         </DataTemplate>
                     </ListBox.ItemTemplate>
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Background" Value="#fff" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="Bd"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="1"
+                                                Padding="2">
+                                            <ContentPresenter />
+                                        </Border>
+
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#4400BFFF"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="Bd" Property="Background" Value="#8800BFFF"/>
+                                                <Setter Property="Foreground" Value="Black"/>
+                                            </Trigger>
+                                            <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                                <Setter Property="Background" Value="#33aaBFFF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
                 </ListBox>
+
+                
 
             </DockPanel>
         </TabItem>
@@ -93,7 +205,7 @@
                 <!-- Search result visualization settings -->
                 <TextBlock DockPanel.Dock="Top" Text="Text to use as sound label: (falls back to filename is empty)" VerticalAlignment="Center" Margin="8,8,4,0" Foreground="#777" />
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" VerticalAlignment="Center" Margin="4">
-                    
+
                     <RadioButton Content="Filename" Margin="4"
                                  GroupName="ResultVisualizationMode"
                                  ToolTip="Shows sounds by their filename in the search result list."
@@ -118,7 +230,7 @@
                     <Button Content="Scan changes" Padding="4"  Margin="4" Click="ScanChangesLibrary_Click"/>
                     <Button DockPanel.Dock="Right" Content="Full rescan" Padding="4" Margin="4" Click="RescanFullLibrary_Click"/>
                 </StackPanel>
- 
+
                 <Label DockPanel.Dock="Top" Content="Tags ignorelist (comma separated, case insensitive):" Foreground="#777" Margin="0 16 0 0"></Label>
                 <TextBox DockPanel.Dock="Top" Text="{Binding TagIgnoreList}" Margin="8 4"></TextBox>
 
@@ -127,4 +239,6 @@
             </DockPanel>
         </TabItem>
     </TabControl>
+
+
 </Window>

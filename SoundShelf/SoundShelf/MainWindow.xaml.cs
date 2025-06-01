@@ -1,6 +1,7 @@
 ﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,6 +9,7 @@ using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media;
 using SoundShelf.Library;
+using SoundShelf.ShortLists;
 using File = System.IO.File;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MessageBox = System.Windows.MessageBox;
@@ -15,14 +17,14 @@ using Path = System.IO.Path;
 
 namespace SoundShelf
 {
-    public record SearchHit(string Label, List<string> Tags, SoundFile SoundFile);
-        
+    public record ShortListMembership(SearchableSound Sound, ShortList ShortList, bool IsMember);
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
     public partial class MainWindow : Window, INotifyPropertyChanged, IDisposable
     {
-        private List<SearchHit>? _searchableSounds;
+        private List<SearchableSound>? _searchableSoundsCache;
         private readonly SoundPlayer _soundPlayer = new();
         private int _scanTaskTotal;
         private int _scanTaskDone;
@@ -39,6 +41,8 @@ namespace SoundShelf
         private string _libraryRootPaths;
         private ResultVisualizationMode _resultVisualizationMode;
         private string _tagIgnoreList;
+        private string _newShortListName;
+        private ShortList? CurrentShortList;
 
         public MainWindow()
         {
@@ -52,6 +56,7 @@ namespace SoundShelf
 
             LoadConfiguration();
             LoadSoundLibrary();
+            LoadShortLists();
             ScanProgressMessage = $"Your SoundShelf contains {_library.Sounds.Count} sound(s).";
             ReprocessSearch();
         }
@@ -61,13 +66,41 @@ namespace SoundShelf
             try
             {
                 _library.Load();
-                _searchableSounds = null;
+                InvalidateSearchableSoundsCache();
             }
             catch (Exception e)
             {
                 MessageBox.Show(
                     "Could not load library from index file. It is probably corrupt. If you manually changed the index file, fix it; or Clean the library from the Manage tab in SoundShelf.\n\nError:\n\n" + e.Message,
                     "Library corrupt", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void LoadShortLists()
+        {
+            var dir = GetShortListFolder();
+
+            var shortLists = new List<ShortList>();
+
+            if (Directory.Exists(dir))
+            {
+                foreach (var file in Directory.GetFiles(dir, "*.json"))
+                {
+                    try
+                    {
+                        shortLists.Add(ShortList.LoadFromFile(file));
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Failed to load shortlist {file}: {ex.Message}");
+                    }
+                }
+            }
+
+            ShortLists.Clear();
+            foreach (var shortList in shortLists)
+            {
+                ShortLists.Add(shortList);
             }
         }
 
@@ -118,9 +151,9 @@ namespace SoundShelf
                     ScanProgressMessage = $"{progress.NewDone} of {progress.NewTotal} new sounds added {removeMsg}";
                 }));
 
-                _searchableSounds = null;
+                InvalidateSearchableSoundsCache();
                 ReprocessSearch();
-                
+
                 return progress;
             });
         }
@@ -145,34 +178,63 @@ namespace SoundShelf
 
         private void ReprocessSearch()
         {
-            var query = SearchQuery.Trim().ToLowerInvariant();
+            EnsureSearchableSoundsCache();
 
-            _searchableSounds ??= (ResultVisualizationMode switch
-            {
-                ResultVisualizationMode.Filename => _library.Sounds.Select(sound => new SearchHit(sound.FileName, GetTags(sound), sound)),
-                ResultVisualizationMode.Title => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Title ?? sound.FileName, GetTags(sound), sound)),
-                ResultVisualizationMode.Comment => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Comment ?? sound.FileName, GetTags(sound), sound)),
-                _ => throw new NotSupportedException($"Unknown result visualization mode: {ResultVisualizationMode}")
-            }).ToList();
-
-            var filtered = string.IsNullOrWhiteSpace(query)
-                ? _searchableSounds
-                : _searchableSounds.Where(s =>
-                    s.Label.ToLowerInvariant().Contains(query) ||
-                    s.Tags.Any(t => t.ToLowerInvariant().Contains(query))
-                    );
+            var filtered = GetSearchResults();
 
             ShowResultsInUI(filtered.ToList());
+        }
+
+        private IEnumerable<SearchableSound> GetSearchResults()
+        {
+            var queryParts = SearchQuery.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var searchableSounds = _searchableSoundsCache!;
+
+            if (CurrentShortList != null)
+            {
+                searchableSounds = searchableSounds.Where(s => CurrentShortList.SoundIds.Any(id => id == s.SoundId)).ToList();
+            }
+
+            return queryParts.Any()
+                ? searchableSounds!.Where(s => queryParts.All(s.SearchKey.Contains))
+                : searchableSounds!;
+        }
+
+        private void EnsureSearchableSoundsCache()
+        {
+            _searchableSoundsCache ??= (ResultVisualizationMode switch
+            {
+                ResultVisualizationMode.Filename => _library.Sounds.Select(sound => new SearchableSound(SoundLibrary.GetSoundId(sound.FilePath), sound.FileName, GetTags(sound), sound)
+                {
+                    IsInShortList = IsInShortList(SoundLibrary.GetSoundId(sound.FilePath))
+                }),
+                ResultVisualizationMode.Title => _library.Sounds.Select(sound => new SearchableSound(SoundLibrary.GetSoundId(sound.FilePath), sound.MetaData?.Title ?? sound.FileName, GetTags(sound), sound)
+                {
+                    IsInShortList = IsInShortList(SoundLibrary.GetSoundId(sound.FilePath))
+                }),
+                ResultVisualizationMode.Comment => _library.Sounds.Select(sound => new SearchableSound(SoundLibrary.GetSoundId(sound.FilePath), sound.MetaData?.Comment ?? sound.FileName, GetTags(sound), sound)
+                {
+                    IsInShortList = IsInShortList(SoundLibrary.GetSoundId(sound.FilePath))
+                }),
+                _ => throw new NotSupportedException($"Unknown result visualization mode: {ResultVisualizationMode}")
+            }).ToList();
+        }
+
+        private bool IsInShortList(string soundId)
+        {
+            return ShortLists.Any(sl => sl.SoundIds.Any(id => id == soundId));
         }
 
         private List<string> GetTags(SoundFile sound)
         {
             return sound.DetectedTags
-                .Where(tag => !_configuration.TagIgnoreList.Any(t => t.Equals(tag, StringComparison.InvariantCultureIgnoreCase)))
+                .Where(tag => !_configuration.TagIgnoreList!.Any(t => t.Equals(tag, StringComparison.InvariantCultureIgnoreCase)))
+                .OrderBy(tag => tag)
                 .ToList();
         }
 
-        private void ShowResultsInUI(List<SearchHit> searchHits)
+        private void ShowResultsInUI(List<SearchableSound> searchHits)
         {
             Dispatcher.Invoke(() =>
             {
@@ -187,7 +249,7 @@ namespace SoundShelf
 
         private void SoundList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is SearchHit selected)
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is SearchableSound selected)
             {
                 CurrentSoundFile = selected.SoundFile;
                 _soundPlayer.Load(selected.SoundFile.FilePath);
@@ -224,7 +286,7 @@ namespace SoundShelf
             }
         }
 
-        private void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
+        private void BrowseTab_OnPreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Space)
             {
@@ -232,6 +294,10 @@ namespace SoundShelf
                     _soundPlayer.Stop();
                 else
                     Play();
+            }
+            else if (e.Key == Key.Escape)
+            {
+                ShortListPopup.IsOpen = false;
             }
         }
 
@@ -265,7 +331,7 @@ namespace SoundShelf
             set => SetField(ref _currentSoundFile, value);
         }
 
-        public ObservableCollection<SearchHit> Results { get; } = new();
+        public ObservableCollection<SearchableSound> Results { get; } = new();
 
         public int ScanTaskTotal
         {
@@ -354,8 +420,14 @@ namespace SoundShelf
                 SetField(ref _tagIgnoreList, value);
                 _configuration.TagIgnoreList = value.Split([',', ';']).Select(root => root.Trim().ToLower()).ToList();
                 SaveConfiguration();
+                InvalidateSearchableSoundsCache();
                 ReprocessSearch();
             }
+        }
+
+        private void InvalidateSearchableSoundsCache()
+        {
+            _searchableSoundsCache = null;
         }
 
         public ResultVisualizationMode ResultVisualizationMode
@@ -371,6 +443,14 @@ namespace SoundShelf
                 ReprocessSearch();
             }
         }
+
+        public string NewShortListName
+        {
+            get => _newShortListName;
+            set => SetField(ref _newShortListName, value);
+        }
+
+        public ObservableCollection<ShortList> ShortLists { get; set; } = new();
 
         #region PropertyChanged
 
@@ -394,6 +474,133 @@ namespace SoundShelf
         public void Dispose()
         {
             _soundPlayer.Dispose();
+        }
+
+        private void AddShortlistButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(NewShortListName) || ShortLists.Any(sl => sl.Name.Equals(NewShortListName, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                MessageBox.Show("Enter a unique name for the new ShortList first.", "Bad ShortList name", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var path = GetShortListFolder();
+
+            Directory.CreateDirectory(path);
+
+            var shortlist = new ShortList
+            {
+                FilePath = Path.Combine(path, Guid.NewGuid() + ".json"),
+                Name = NewShortListName,
+                SoundIds = []
+            };
+
+            shortlist.SaveToFile();
+            LoadShortLists();
+
+            NewShortListName = "";
+        }
+
+        private void DeleteShortListButton_Click(object sender, RoutedEventArgs e)
+        {
+            var shortList = (e.Source as FrameworkElement)?.DataContext as ShortList;
+            if (shortList != null)
+            {
+                if (shortList.SoundIds.Any() && MessageBox.Show($"Shortlist '{shortList.Name}' contains {shortList.SoundIds.Count} sound(s).\n\nAre you sure to delete it?",
+                        "Delete non-empty shortlist?", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.No)
+                    return;
+
+                File.Delete(shortList.FilePath);
+                LoadShortLists();
+                if (_searchableSoundsCache != null)
+                    foreach (var searchableSound in _searchableSoundsCache)
+                    {
+                        searchableSound.IsInShortList = IsInShortList(searchableSound.SoundId);
+                    }
+            }
+        }
+
+        private static string GetShortListFolder()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SoundShelf",
+                "Shortlists");
+        }
+
+        private void ShowFullCatalogButton_Click(object sender, RoutedEventArgs e)
+        {
+            CurrentShortList = null;
+            ReprocessSearch();
+        }
+
+        private void ShowShortListButton_Click(object sender, RoutedEventArgs e)
+        {
+            var shortList = (e.Source as FrameworkElement)?.DataContext as ShortList;
+            if (shortList != null)
+            {
+                CurrentShortList = shortList;
+                ReprocessSearch();
+            }
+        }
+
+        private void ShortListContextMenuButton_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            var sound = (e.Source as FrameworkElement)?.DataContext as SearchableSound;
+
+            if (sound == null) return;
+
+            ToggleShortListPopup(sender as UIElement, sound);
+        }
+
+        private void ToggleShortListPopup(UIElement? sender, SearchableSound sound)
+        {
+            if (ShortListPopup.IsOpen)
+            {
+                ShortListPopup.IsOpen = false;
+                return;
+            }
+
+            ShortListPopup.PlacementTarget = sender;
+            ShortListPopup.IsOpen = true;
+            ShortListMemberships.Clear();
+            foreach (var shortList in ShortLists)
+            {
+                ShortListMemberships.Add(new ShortListMembership(sound, shortList, shortList.SoundIds.Contains(sound.SoundId)));
+            }
+        }
+
+        private void ShortListCOntextMenuButton_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            e.Handled = true; // prevent item from being selected when pressing the ShortList button
+        }
+
+        private void MainWindow_OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+                ShortListPopup.IsOpen = false;
+        }
+
+        public ObservableCollection<ShortListMembership> ShortListMemberships { get; } = new();
+
+        private void AddToShortList_Click(object sender, RoutedEventArgs e)
+        {
+            var membership = (e.Source as FrameworkElement)?.DataContext as ShortListMembership;
+            if (membership == null) return;
+
+            membership.ShortList.SoundIds.Add(membership.Sound.SoundId);
+            membership.ShortList.SaveToFile();
+            membership.Sound.IsInShortList = IsInShortList(membership.Sound.SoundId);
+        }
+
+        private void RemoveFromShortList_Click(object sender, RoutedEventArgs e)
+        {
+            var membership = (e.Source as FrameworkElement)?.DataContext as ShortListMembership;
+            if (membership == null) return;
+
+            membership.ShortList.SoundIds.Remove(membership.Sound.SoundId);
+            membership.ShortList.SaveToFile();
+            membership.Sound.IsInShortList = IsInShortList(membership.Sound.SoundId);
         }
     }
 }

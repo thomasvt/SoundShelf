@@ -12,7 +12,7 @@ namespace SoundShelf
         public static Configuration LoadFromFile(string path)
         {
             if (!File.Exists(path))
-                return new Configuration(); // Return default if file not found
+                throw new FileNotFoundException(path);
 
             string json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<Configuration>(json, new JsonSerializerOptions
