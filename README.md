@@ -4,8 +4,8 @@
 
 A very simple sound effect library browser. Made for my gamedev work.
 
-* Scan one or more folders for .wav files and extracts tags from filename and metadata.
-* Search your library by ore or more pieces of text in tags.
+* Scan one or more folders for .wav files, collecting tags from filename and metadata.
+* Search your library by one or more pieces of text.
 * Play the sound upon selection or `Spacebar`
 * Select and export slices of sound to a new .wav file
 * Add sounds to 'shortlists' for managing favorites or guiding your searches for sounds
