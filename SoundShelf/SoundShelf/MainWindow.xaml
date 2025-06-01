@@ -24,23 +24,6 @@
 
                 <!-- top stuff -->
                 <DockPanel DockPanel.Dock="Top" Margin="0 0 0 8" >
-                    <!-- Search result visualization settings -->
-                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="4">
-                        <TextBlock Text="Show as:" VerticalAlignment="Center" Margin="8,0,4,0" Foreground="#777" />
-                        <RadioButton Content="Filename" Margin="4"
-                                     GroupName="ResultVisualizationMode"
-                                     ToolTip="Shows sounds by their filename in the search result list."
-                                     IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Filename}}"/>
-                        <RadioButton Content="Title" Margin="4"
-                                     GroupName="ResultVisualizationMode"
-                                     ToolTip="Shows sounds by their metadata Title the search result list."
-                                     IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Title}}" />
-                        <RadioButton Content="Comment" Margin="4"
-                                     GroupName="ResultVisualizationMode"
-                                     ToolTip="Shows sounds by their metadata Comment the search result list."
-                                     IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Comment}}" />
-                    </StackPanel>
-
                     <DockPanel >
                         <TextBlock DockPanel.Dock="Left" Text="🔍"
                                VerticalAlignment="Center"
@@ -76,7 +59,7 @@
                         <DataTemplate DataType="{x:Type local:SearchHit}">
                             <StackPanel>
                                 <TextBlock Text="{Binding Label}" Margin="0 4 0 4" />
-                                <ItemsControl ItemsSource="{Binding SoundFile.DetectedTags}" Margin="0 0 0 6">
+                                <ItemsControl ItemsSource="{Binding Tags}" Margin="0 0 0 6">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <StackPanel Orientation="Horizontal" />
@@ -107,6 +90,24 @@
 
         <TabItem Header="Manage">
             <DockPanel>
+
+                <!-- Search result visualization settings -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" VerticalAlignment="Center" Margin="4">
+                    <TextBlock Text="Label for sounds:" VerticalAlignment="Center" Margin="0,0,4,0" Foreground="#777" />
+                    <RadioButton Content="Filename" Margin="4"
+                                 GroupName="ResultVisualizationMode"
+                                 ToolTip="Shows sounds by their filename in the search result list."
+                                 IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Filename}}"/>
+                    <RadioButton Content="MetaData.Title" Margin="4"
+                                 GroupName="ResultVisualizationMode"
+                                 ToolTip="Shows sounds by their metadata Title the search result list."
+                                 IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Title}}" />
+                    <RadioButton Content="MetaData.Comment" Margin="4"
+                                 GroupName="ResultVisualizationMode"
+                                 ToolTip="Shows sounds by their metadata Comment the search result list."
+                                 IsChecked="{Binding ResultVisualizationMode, Mode=TwoWay, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:ResultVisualizationMode.Comment}}" />
+                </StackPanel>
+
                 <Grid DockPanel.Dock="Bottom" Height="24">
                     <ProgressBar Height="16" Margin="4" Maximum="{Binding ScanTaskTotal}" Value="{Binding ScanTaskDone}"
                                  Visibility="{Binding ProgressVisibility}"/>
@@ -118,7 +119,10 @@
                     <Button DockPanel.Dock="Right" Content="Full rescan" Padding="4" Margin="4" Click="RescanFullLibrary_Click"/>
                 </StackPanel>
 
-                <Label DockPanel.Dock="Top" Content="Library root paths (to scan):"></Label>
+                <Label DockPanel.Dock="Top" Content="Tags ignorelist (comma separated, case insensitive):" Foreground="#777"></Label>
+                <TextBox DockPanel.Dock="Top" Text="{Binding TagIgnoreList}"></TextBox>
+
+                <Label DockPanel.Dock="Top" Content="Library root paths (one per line):" Foreground="#777"></Label>
                 <TextBox Text="{Binding LibraryRootPaths}"></TextBox>
             </DockPanel>
         </TabItem>

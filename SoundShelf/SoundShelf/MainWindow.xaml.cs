@@ -1,6 +1,6 @@
-﻿using System;
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,7 +15,7 @@ using Path = System.IO.Path;
 
 namespace SoundShelf
 {
-    public record SearchHit(string Label, SoundFile SoundFile);
+    public record SearchHit(string Label, List<string> Tags, SoundFile SoundFile);
         
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -37,6 +37,7 @@ namespace SoundShelf
         private Configuration _configuration;
         private string _libraryRootPaths;
         private ResultVisualizationMode _resultVisualizationMode;
+        private string _tagIgnoreList;
 
         public MainWindow()
         {
@@ -51,7 +52,7 @@ namespace SoundShelf
             LoadConfiguration();
             LoadSoundLibrary();
             ScanProgressMessage = $"Your SoundShelf contains {_library.Sounds.Count} sound(s).";
-            ApplySearchFilter();
+            ReprocessSearch();
         }
 
         private void LoadSoundLibrary()
@@ -77,7 +78,10 @@ namespace SoundShelf
             }
 
             _configuration = Configuration.LoadFromFile(_configFilePath);
+            _configuration.LibraryRoots ??= [];
+            _configuration.TagIgnoreList ??= [];
             LibraryRootPaths = string.Join(Environment.NewLine, _configuration.LibraryRoots);
+            TagIgnoreList = string.Join(", ", _configuration.TagIgnoreList);
             ResultVisualizationMode = _configuration.ResultVisualizationMode;
         }
 
@@ -112,7 +116,7 @@ namespace SoundShelf
                     ScanProgressMessage = $"{progress.NewDone} of {progress.NewTotal} new sounds added {removeMsg}";
                 }));
 
-                ApplySearchFilter();
+                ReprocessSearch();
                 
                 return progress;
             });
@@ -136,27 +140,33 @@ namespace SoundShelf
             ScanProgressMessage = $"Your SoundShelf now contains {_library.Sounds.Count} sound(s).";
         }
 
-        private void ApplySearchFilter()
+        private void ReprocessSearch()
         {
             var query = SearchQuery.Trim().ToLowerInvariant();
 
-            var filtered = string.IsNullOrWhiteSpace(query)
-                ? _library.Sounds
-                : _library.Sounds.FindAll(s =>
-                    s.FileName.ToLowerInvariant().Contains(query) ||
-                    s.MetaData?.Title?.ToLowerInvariant().Contains(query) == true ||
-                    s.MetaData?.Artist?.ToLowerInvariant().Contains(query) == true);
-
-
-            var results = ResultVisualizationMode switch
+            var allSounds = ResultVisualizationMode switch
             {
-                ResultVisualizationMode.Filename => filtered.Select(sound => new SearchHit(sound.FileName, sound)),
-                ResultVisualizationMode.Title => filtered.Select(sound => new SearchHit(sound.MetaData?.Title ?? "<?>", sound)),
-                ResultVisualizationMode.Comment => filtered.Select(sound => new SearchHit(sound.MetaData?.Comment ?? "<?>", sound)),
+                ResultVisualizationMode.Filename => _library.Sounds.Select(sound => new SearchHit(sound.FileName, GetTags(sound), sound)),
+                ResultVisualizationMode.Title => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Title ?? "<?>", GetTags(sound), sound)),
+                ResultVisualizationMode.Comment => _library.Sounds.Select(sound => new SearchHit(sound.MetaData?.Comment ?? "<?>", GetTags(sound), sound)),
                 _ => throw new NotSupportedException($"Unknown result visualization mode: {ResultVisualizationMode}")
             };
 
-            ShowResultsInUI(results.ToList());
+            var filtered = string.IsNullOrWhiteSpace(query)
+                ? allSounds
+                : allSounds.Where(s =>
+                    s.Label.ToLowerInvariant().Contains(query) ||
+                    s.Tags.Any(t => t.ToLowerInvariant().Contains(query))
+                    );
+
+            ShowResultsInUI(filtered.ToList());
+        }
+
+        private List<string> GetTags(SoundFile sound)
+        {
+            return sound.DetectedTags
+                .Where(tag => !_configuration.TagIgnoreList.Any(t => t.Equals(tag, StringComparison.InvariantCultureIgnoreCase)))
+                .ToList();
         }
 
         private void ShowResultsInUI(List<SearchHit> searchHits)
@@ -275,7 +285,7 @@ namespace SoundShelf
                 {
                     _searchQuery = value;
                     OnPropertyChanged();
-                    Task.Run(ApplySearchFilter);
+                    Task.Run(ReprocessSearch);
                 }
             }
         }
@@ -331,6 +341,20 @@ namespace SoundShelf
             }
         }
 
+        public string TagIgnoreList
+        {
+            get => _tagIgnoreList;
+            set
+            {
+                if (_tagIgnoreList == value) return;
+
+                SetField(ref _tagIgnoreList, value);
+                _configuration.TagIgnoreList = value.Split([',', ';']).Select(root => root.Trim().ToLower()).ToList();
+                SaveConfiguration();
+                ReprocessSearch();
+            }
+        }
+
         public ResultVisualizationMode ResultVisualizationMode
         {
             get => _resultVisualizationMode;
@@ -341,7 +365,7 @@ namespace SoundShelf
                 SetField(ref _resultVisualizationMode, value);
                 _configuration.ResultVisualizationMode = value;
                 SaveConfiguration();
-                ApplySearchFilter();
+                ReprocessSearch();
             }
         }
 
@@ -368,7 +392,5 @@ namespace SoundShelf
         {
             _soundPlayer.Dispose();
         }
-
-
     }
 }
