@@ -8,7 +8,7 @@ A very simple sound effect library browser. Made for my gamedev work.
 * Search your library by ore or more pieces of text in tags.
 * Visualizes and plays wave upon selection or `Spacebar`
 * Can export slice of the wave to a new .wav file
-* Can add spounds to 'shortlists' for managing favorites or guiding your searches for specific sounds
+* Can add sounds to 'shortlists' for managing favorites or guiding your searches for specific sounds
 
 ![screenshot](https://github.com/thomasvt/SoundShelf/blob/master/Screenshot.png)
 
