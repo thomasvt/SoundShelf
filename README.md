@@ -4,29 +4,37 @@
 
 A very simple sound effect library browser. Made for my gamedev work.
 
-* Scans one or more folders for .wav files and extracts tags from filename and metadata.
-* Search your library by ore or more pieces of text in tags.
-* Visualizes and plays wave upon selection or `Spacebar`
-* Can export slice of the wave to a new .wav file
-* Can add spounds to 'shortlists' for managing favorites or guiding your searches for specific sounds
-
 ![screenshot](https://github.com/thomasvt/SoundShelf/blob/master/Screenshot.png)
+
+## Main features
+
+* Scan one or more folders for .wav files, collecting tags from filename and metadata.
+* Search your library by one or more pieces of text.
+* Play the sound upon selection or `Spacebar`
+* Select and export slices of sound to a new .wav file
+* Add sounds to 'shortlists' for managing favorites or guiding your searches for sounds
+
 
 # Shortlists
 
-Shortlists are like favorites, but you can create multiple shortlists. You create them in the right panel by entering a name and clicking the + button.
+Shortlists are like favorites, but you can create more than one shortlists. They are primarily used for collecting candidates for a sound you're looking for.
 
-You can add sounds to one or more shortlists using the `star` button on each sound.
+The UI is still quite minimal:
 
-Select any shortlist in the right panel to see its content. Choose the `Show full catalog` button to go back to the full library.
+* Create a shortlist in the righthand panel: entering a name and click the + button.
+* All shortlists are shown in that same righthand panel.
+* Delete a shortlist by clicking the X button next to it.
+* Add sounds to shortlists using the `star` button of a sound and toggling shortlist checkboxes.
+* See the content of a shortlist by selecting it in the righthand panel. Choose `Show full catalog` to go back to seeing the full library.
 
 # Manage
 
 ## Scanning your library
 
-In the Manage tab you can (manually) add rootfolders where your sound files are, then click the either of the Scan buttons.
+In the Manage tab you can (manually) add rootfolders where your sound files are, then click either of the Scan buttons:
 
-The `Scan changes` button only processes new and deleted sound files. The `Full rescan` clears your entire library and scans everything again.
+* `Scan changes` processes new and deleted sound files.
+* `Full rescan` clears your entire library and scans everything again.
 
 ## Tag ignore list
 
